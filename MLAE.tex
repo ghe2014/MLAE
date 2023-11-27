@@ -1,0 +1,442 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage[braket,qm]{qcircuit}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+\usepackage{hyperref}
+\title{On Maximum Likelihood in Amplitude Estimation without Phase Estimation}
+\author{Guangliang He}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+  Quantum amplitude estimation is an important quantum algorithm
+  and it can be applied in many different fields.  Suzuki et al.
+  \cite{suzuki_2020} proposed a method of amplitude estimation
+  without phase estimation which lessens the demand on quantum
+  resources.  However, because the likelihood function has many
+  local maxima, the existing maximization algorithms for finding
+  the global maximum are either slow, or sometime mistaken a local
+  maximum as the global one. This paper analyzes the analytical
+  behavior of the log likelihood function and propose an efficient
+  algorithm to find the global maximum.
+\end{abstract}
+
+\section{Introduction}
+There are a number of quantum algorithms offers significant speed up
+over classical algorithms.  With the quick development of quantum
+computer hardware, these speed up are gradually moving towards
+practical from purely theoretical. Quantum amplitude amplification
+and estimation\cite{brassard_2002} is one of these quantum algorithms.
+Furthermore, Suzuki et al.\cite{suzuki_2020} proposed a hybrid
+algorithm combines quantum amplitude amplification process and
+classical maximum likelihood estimation to achieve the goal of
+amplitude estimation.
+
+However, because the existence of many local maxima in the likelihood
+function, the algorithms for the maximize the likelihood function
+often quite slow or sometime mistaken a local maximum
+as the global one\cite{qiskit_mlae, qiskit_aewoqft}.
+
+In this paper, we analyze the analytical property of the likelihood
+function and propose more efficient alternatives for maximizing the
+likelihood function.
+
+\section{Background}
+\subsection{Amplitude Amplification}
+Let $\mathcal A$ be a unitary operator on a Hilbert space of $n+1$
+qubits, and $\ket\Psi = \mathcal A\ket0_{n+1}
+= \sqrt{a}\ket{\Psi_1}\ket1 + \sqrt{1-a}\ket{\Psi_0}\ket0$ be
+the resulting state of $\mathcal A$ acting on the initial zero state.
+Our task is to estimate the parameter $a$, the probability of
+the $(n+1)$-th qubit is in the state of $\ket1$.
+
+Define operator $Q$ as
+\begin{equation}
+Q = -\mathcal A(I_{n+1}-2\op{0\cdots0}{0\cdots0})\mathcal A^{-1}(I_n\otimes Z),
+\end{equation}
+and parameterize $a$ as $a = \sin^2\theta_a$, where $\theta_a\in[0,\pi/2]$.
+Brassard et al.\cite{brassard_2002} showed that amplitude amplification
+can be achieved by repeatly applying the operator $Q$, as
+\begin{eqnarray}
+  \ket\Psi & = & \mathcal A\ket0_{n+1}  =  \sin\theta_a\ket{\Psi_1}\ket1
+  + \cos\theta_a\ket{\Psi_0}\ket0, \\
+  Q^m\ket\Psi & = & \sin((2m+1)\theta_a)\ket{\Psi_1}\ket1 
+  + \cos((2m+1)\theta_a)\ket{\Psi_0}\ket0.
+\end{eqnarray}
+
+Brassard et al.\cite{brassard_2002} finally estimate the unknown
+parameter $a$ by following the amplitude amplification process with
+phase estimation process utilizing quantum Fourier transformation (QFT).
+
+
+\subsection{Amplitude estimation without phase estimation}
+Suzuki et al.\cite{suzuki_2020} proposed a method of amplitude
+estimation without phase estimation.  This method starts with quantum
+amplitude amplification, then follows with a classical likelihood
+maximization to estimate the amplitude.
+
+Let $\{m_k\mid k = 0, \ldots, M\}$, a set of non-negative integer, be the
+evaluation schedule, and
+$s_k$ (shots) measurements are made on the $(n+1)$-th qubits of
+$Q^{m_k}\ket\Psi$ and $h_k$ (hits) are the number of measurement result
+being state $\ket1$.  The log likelihood function for such a
+configuration is
+\begin{equation}
+  \log L(\theta_a; \{m, s, h\}) = \sum_{k=0}^M\log L_k(\theta_a; \{m_k, s_k, h_k\}),
+\end{equation}
+where
+\begin{eqnarray}
+  \log L_k(\theta_a; \{m_k, s_k, h_k\}) & = & 
+  \quad 2h_k\log\left[\sin((2m_k+1)\theta_a)\right] \nonumber \\
+  & & + 2(s_k-h_k)\log\left[\cos((2m_k+1)\theta_a)\right].
+  \label{eq:logLk}
+\end{eqnarray}
+
+\begin{figure}
+  \begin{center}
+    \includegraphics{likelihood_func.png}
+  \end{center}
+  \caption{The $\log$ likelihood function for $m = \{0, 1, 2\}$,
+    $s = \{100, 100, 100\}$, and $h = \{73, 13, 100\}$.}
+  \label{fig:log_likelihood_func}
+\end{figure}
+
+
+\subsection{Maximization algorithms}
+As shown in Figure~\ref{fig:log_likelihood_func}, the function $\log L$ has
+many local maxima, numerical maximization can be tricky.
+Suzuki\cite{suzuki_2020} suggested,
+\begin{quote}
+  The global maximum of the likelihood function can be obtained by
+using a modified brute-force search algorithm; the global maximum of
+$\prod_{k=0}^mL_k(h_k; \theta_a)$ is determined by searching around the
+vicinity of the estimated global maximum for
+$\prod_{k=0}^{m-1}L_k(h_k; \theta_a)$.
+\end{quote}
+Tanaka et al.\cite{qiskit_aewoqft} implemented an algorithm using
+this approach.  At iteration $k+1$, the previous estimation $\hat a_k$
+and the Cram\'er-Rao bound $\hat e_k$ are computed, the search region
+for $\hat a_{k+1}$ is
+$(\max(0, \hat a_k-5\hat e_k), \min(\hat a_k+5\hat e_k, 1))$.
+The global minimum of $-\sum_{i=0}^{k+1}\log L_i$ is obtained by
+using a brute search with 20 grid points, in the search region,
+The problem with this algorithm is that it may yield wrong result
+when the global maximum of the likelihood function falls outside of
+search region.  Figure~\ref{fig:local_maximum}
+shows ones example which a local maximum was mistaken as the global one
+from the algorithm.
+
+\begin{figure}
+  \begin{center}
+    \includegraphics{local_maximum.png}
+  \end{center}
+  \caption{The $\log$ likelihood function for $m = \{0, 1, 2\}$,
+    $s = \{100, 100, 100\}$, and $h = \{73, 13, 100\}$.  The vertical
+    line shows the location of $\hat\theta_a$ calculated by Tanaka's
+    algorithm.} 
+  \label{fig:local_maximum}
+\end{figure}
+
+The class \texttt{MaximumLikelihoodAmplitudeEstimation}\cite{qiskit_mlae},
+part of Qiskit\cite{qiskit} also uses grid search to find the maximum.
+Instead of the iterative method, it does one single search, but takes an
+extremely high number of grid points, 
+\begin{equation}
+N_{\text{eval}} = \max(10000, \lfloor1000m_M\pi\rfloor),
+\end{equation}
+where $m_M$ is last member of the evaluation schedule.  For an
+estimation problem with $m_M = 256$, the number of grid points
+can be as high as $N_{\text{eval}} = 804247$, almost one million
+evaluations of $\log L$.
+
+\section{Properties of \texorpdfstring{$\log L$}{logL}}
+As shown previously, maximizing this particular $\log L$
+as a generic maximizing problem can be inefficient.  Luckily,
+we can explore certain properties of $\log L$ to make the
+maximization much more efficient.
+
+\subsection{Set of singularities}
+First of all, we know that 
+in the region $\theta\in[0,\pi/2]$, the function $\log\sin((2m+1)\theta)$
+has singularities at
+\begin{equation}
+  \Sigma_m^{(s)} = \bigl\{\frac{2n}{2m+1}\frac\pi2\bigm| n = 0, \ldots, m\bigr\},
+\end{equation}
+and the function $\log\cos((2m+1)\theta)$ has singularities at
+\begin{equation}
+  \Sigma_m^{(c)} = \bigl\{\frac{2n+1}{2m+1}\frac\pi2\bigm| n = 0, \ldots, m\bigr\}.
+\end{equation}
+Overall, the set of singularities for the function $\log L_k$ is
+\begin{equation}
+  \Sigma_k \equiv  \Sigma_{m_k,s_k,h_k} = \begin{cases}
+    \Sigma_{m_k}^{(c)} & h_k = 0 \\
+    \Sigma_{m_k}^{(s)} & h_k = s_k \\
+    \Sigma_{m_k}^{(s)}\cup\Sigma_{m_k}^{(c)} & \text{otherwise},
+    \end{cases}
+\end{equation}
+and the set of singularities for $\log L$ is the union of them all,
+\begin{equation}
+  \Sigma = \cup_{k=0}^M\Sigma_k.
+\end{equation}
+For $\sigma\in\Sigma$, we have
+\begin{equation}
+  \lim_{\theta\to\sigma} \log L(\theta; \{m,s,h\}) = -\infty.
+\end{equation}
+
+\subsection{Derivatives}
+Other than on the singularity set $\Sigma$, the function
+$\log L(\theta; \{m,s,h\})$ is twice differentiable everywhere.
+In fact,
+\begin{eqnarray}
+  &  & \frac{d}{d\theta}\log L(\theta; \{m, s, h\}) \nonumber \\
+ & = &  \sum_{k=0}^M 2(2m_k+1)(h_k\cot((2m_k+1)\theta) \nonumber \\
+ &   &  \qquad\qquad\qquad\quad -(s_k-h_k)\tan((2m_k+1)\theta)),
+\end{eqnarray}
+and
+\begin{eqnarray}
+  &  & \frac{d^2}{d\theta^2}\log L(\theta; \{m, s, h\}) \nonumber \\
+  & = &  -\sum_{k=0}^M 2(2m_k+1)^2(h_k\csc^2((2m_k+1)\theta) \nonumber \\
+  &   & \qquad\qquad\qquad\qquad +(s_k-h_k)\sec^2((2m_k+1)\theta)).
+\end{eqnarray}
+Because $h_k \ge 0$ and $h_k \le s_k$, we conclude that
+\begin{equation}
+  \frac{d^2}{d\theta^2}\log L(\theta; \{m,s,h\}) < 0 \qquad
+  \theta\in[0, \pi/2]\setminus\Sigma.
+\end{equation}
+
+\subsection{Local maxima}
+Let $\sigma_1 < \sigma_2 < \cdots < \sigma_{|\Sigma|}$ be the ordered
+points in the singularity set $\Sigma$.  For any $0 < i < |\Sigma|$,
+$\log L$ is twice differentiable on $(\sigma_i, \sigma_{i+1})$ with
+the second derivative always negative, and
+\begin{eqnarray}
+  \lim_{\theta\to\sigma_i^+}\frac{d}{d\theta}\log L(\theta; \{m,s,h\})
+  & = & +\infty \\
+  \lim_{\theta\to\sigma_{i+1}^-}\frac{d}{d\theta}\log L(\theta; \{m,s,h\})
+  & = & -\infty.
+\end{eqnarray}
+Thus, $\log L$ has one unique maximum on $(\sigma_i, \sigma_{i+1})$.
+
+If $0\notin\Sigma$, which implies that $h_k = 0,\,\forall k$.
+In this case, $\log L(0; \{m,s,h\}) = 0$, which means $\theta = 0$ is
+the global maximum because $\log L(\theta; \{m,s,h\}) \le 0$.
+
+Similarly, if $\pi/2\notin\Sigma$, which can only be true when
+$h_k = s_k,\,\forall k$.  This leads to $\log L(\pi/2; \{m,s,h\}) = 0$,
+or $\theta = \pi/2$ is the global maximum.
+
+\section{New Algorithms to find the global maximum}
+Based on the analytic properties of $\log L(\theta; \{m,s,h\})$,
+we arrive a new algorithm for finding its global maximum.  The
+basic idea is to find all the singularities of $\log L$ first, then
+find to local maxima in all the regions separated by the
+singularities.  The the largest local maxima must be the global maximum.
+This algorithm is shown in Algorithm~\ref{algo:mlsr}.
+
+\begin{algorithm}
+  \caption{Maximize $\log L(\theta; \{m, s, h\})$
+    by searching regions.}
+  \label{algo:mlsr}
+  \begin{algorithmic}[1]
+    \Procedure{maximize\_likelihood}{$m$, $s$, $h$}
+
+    \State $\Sigma = \emptyset$
+
+    \For{$k$ in $0,\ldots, \text{length}(m)$}
+
+    \If{$h_k > 0$}
+    \State add $\bigl\{\frac{2i}{2m_k+1} \bigm| 0 \le i \le m_k\bigr\}$ to $\Sigma$
+    \EndIf
+
+    \If{$h_k < s_k$}
+    \State add $\bigl\{\frac{2i+1}{2m_k+1} \bigm| 0\le i \le m_k\bigr\}$ to $\Sigma$
+    \EndIf
+
+    \EndFor
+
+    \If{$0\not\in\Sigma$}
+    \Return 0
+    \EndIf
+
+    \If{$1\not\in\Sigma$}
+    \Return $\frac\pi2$
+    \EndIf
+    
+
+    \State $Z$ = []
+    \For{$f\in\Sigma$}
+    \State append $f\times\frac\pi2$ to $Z$
+    \EndFor
+    \State sort $Z$ such that $Z_0 < Z_1 < Z_2 < \cdots$
+    \State $l = -\infty$
+    \For{i in 0 to length(Z)-2}
+    \State find $\hat\theta_i\in(Z_i, Z_{i+1})$ such that
+    $\frac{d}{d\theta}\log L(\hat\theta_i, \{m,s,h\}) = 0$
+    \State compute $l_i = \log L(\hat\theta_i; \{m, s, h\})$
+    \If{$l_i > l$}
+    \State $l = l_i$
+    \State $\hat\theta = \hat\theta_i$
+    \EndIf
+    \EndFor
+    \Return $\hat\theta$
+    \EndProcedure
+  \end{algorithmic}
+\end{algorithm}
+
+
+Note that the number of singularities is about $2\sum m_k$.
+That means the number of regions is very high when $\sum m_k$ is high.
+Search in all of these regions seems wasteful.  Borrow the
+idea from Tanaka\cite{qiskit_aewoqft}, Algorithm~\ref{algo:mlsr} can
+be modified to limit the number of search regions.  To maximize
+$\sum_{k=0}^K \log L_k$, we find $\hat\theta_{K-1}$ which maximizes
+$\sum_{k=0}^{K-1}\log L_k$.  then search the local maxima of
+$\sum_{k=0}^K\log L_k$ in the region contain $\hat\theta_{k-1}$.  To
+reduce the chance the maximum falling out the search region,
+$n$ additional regions on either side of the center search region
+can be searched.  The algorithm is outlined in Algorithm~\ref{algo:mlsr-i}.
+
+\begin{algorithm}
+  \caption{Maximize $\log L(\theta; \{m,s,h\})$
+    by searching regions iteratively.}
+  \label{algo:mlsr-i}
+  \begin{algorithmic}[1]
+    \Procedure{iterative\_maximize\_likelihood}{$m$, $s$, $h$, $n$}
+    \State $\Sigma = \emptyset$
+    
+    \For{$k$ in $0,\ldots,\text{length}(m)$}
+
+    \If{$h_k > 0$}
+    \State add $\bigl\{\frac{2i}{2m_k+1} \bigm| 0 \le i \le m_k\bigr\}$
+    to $\Sigma$
+    \EndIf
+
+    \If{$h_k < s_k$}
+    \State add $\bigl\{\frac{2i+1}{2m_k+1} \bigm| 0\le i \le m_k\bigr\}$ to $\Sigma$
+    \EndIf
+
+    \If{$0\notin\Sigma$}
+    \State $\hat\theta = 0$
+    \State $l = 0$
+
+    \ElsIf{$1\notin\Sigma$}
+    \State $\hat\theta = \pi/2$
+    \State $l = 0$
+
+    \Else
+    \State $Z = []$
+    \For{$f\in\Sigma$}
+    \State append $f\times\frac\pi2$ to $Z$
+    \EndFor
+    \State sort $Z$ such that $Z_0 < Z_1 < Z_2 < \cdots$
+
+    \If{$\hat\theta$ is unset}
+    \State $r_s = 0$
+    \State $r_e = \text{length}(Z)-1$
+    \Else
+    \State find $r$ such that $Z_r < \hat\theta < Z_{r+1}$
+    \State $r_s = \max(0, r-n)$
+    \State $r_e = \min(r+n, \text{length}(Z)-1)$
+    \EndIf
+
+    \State $l = -\infty$
+    \For{$r$ in $r_s,\ldots,r_e-1$}
+    \State find $\hat\theta_r\in(Z_r, Z_{r+1})$ such that
+    $\frac{d}{d\theta}\log L(\hat\theta_r;\{m,s,h\}) = 0$
+    \State compute $l_r = \log L(\hat\theta_r;\{m,s,h\})$
+    \If{$l_r > l$}
+    \State $l = l_r$
+    \State $\hat\theta = \hat\theta_r$
+    \EndIf
+    \EndFor
+
+    \EndIf
+
+    \EndFor
+    \Return $\hat\theta$
+    \EndProcedure
+  \end{algorithmic}
+\end{algorithm}
+
+
+\section{Comparison of algorithms}
+The Figure~\ref{fig:timing} shows measured time in seconds for
+estimating 10 different length of EIS (exponentially incremental
+sequence).  For each given length EIS, 20 different set of shots
+and hits are used for estimate.
+
+As we can see in the plot, Algorithm~\ref{algo:mlsr-i},
+represented by the blue line, works best
+across all length of EIS.  The green line, representing
+the Algorithm~\ref{algo:mlsr}, works equally
+well for short length EIS, but is slower when the
+length of EIS increases.  The yellow line, representing
+Tanaka's algorithm, starts slower at shorter length EIS,
+then outperforms green line, but it never outperforms the
+blue line.
+
+Figure~\ref{fig:accuracy} shows the scatter plot of estimation
+results from different algorithms.  The top plot is 
+Algorithm~\ref{algo:mlsr} versus the Tanaka algorithm.
+It clearly shows one bad
+estimation result from Tanaka's.  The bottom plot is 
+Algorithm~\ref{algo:mlsr} versus Algorithm~\ref{algo:mlsr-i},
+a clear straight line shows the match between two algorithms.
+
+\section{Conclusion}
+In this paper, we presented two algorithms
+for maximizing the $\log$-likelihood function
+arised from amplitude amplification process.
+
+Both Algorithm~\ref{algo:mlsr} and Qiskit MLAE algorithm are reliable,
+can correctly identify the global maximum. Algorithm~\ref{algo:mlsr}
+outperforms Qiskit MLAE by several orders of maganitudes.
+
+For Tanaka's algorithm and Algorithm~\ref{algo:mlsr-i}, there are
+regions omitted from the search.  That can lead to mis-identify the
+global maximum.  We have seen examples when Tanaka's algorithm
+fails to identify the global maximum.  We have yet to see the
+Algorithm~\ref{algo:mlsr-i} fail in our limited numerical experiment.
+Mathematically, there is always some probability of the global
+maximum falls in one of those omitted regions. So one must proceed
+with caution.
+
+In short, if reliability is important, use Algorithm~\ref{algo:mlsr}.
+If one is willing to trade off some reliability for speed, then
+use Algorithm~\ref{algo:mlsr-i}.
+
+\begin{figure}
+  \begin{center}
+    \includegraphics{timing.png}
+  \end{center}
+  \caption{The horizontal axis is the length of the EIS sequence.
+    The vertical axis is the number of seconds used to maximize
+    different $\log L$ for 20 different set of $m, s, h$.}
+  \label{fig:timing}
+\end{figure}
+
+\begin{figure}
+  \begin{center}
+    \includegraphics{accuracy.png}
+  \end{center}
+  \caption{Scatter plot of estimation results from different algorithms.
+    The horizontal coordinate is the estimation from
+    Algorithm~\ref{algo:mlsr}.  The vertical coordinate on the top
+    plot is the estimation from Tanaka's algorithm\cite{qiskit_aewoqft}.
+    The vertical coordinate on the bottom plot is the estimation from
+    Algorithm~\ref{algo:mlsr-i}.}
+  \label{fig:accuracy}
+\end{figure}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\bibliographystyle{plain}
+\bibliography{../BIBTEX/mybib}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% end
+\end{document}
